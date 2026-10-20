@@ -13,8 +13,8 @@
 
 | Feature | What it does |
 |---|---|
-| **Wake phrase** | Turn on Hands-free and say “Hello Deelraj”, or just tap the glow |
-| **Siri-style screen** | A black screen with a glowing wave that reacts to listening, thinking and speaking |
+| **Wake phrase** | Turn on Hands-free and say “Hello Deelraj”, or tap the microphone button |
+| **Siri-style screen** | No text, just a black screen with a glowing wave and two buttons: microphone and hands-free |
 | **Calendar and email** | Check your schedule, search and read email, all by voice |
 | **Confirmation first** | Emails and events are only sent or created after you say yes |
 | **Natural replies** | Short, friendly answers, and follow-up questions work |
@@ -43,7 +43,29 @@ python app.py
 ```
 
 Open http://localhost:5000 in Chrome, Edge or Safari, click **Connect Google account**,
-then tap the glow or switch on **Hands-free** and say “Hello Deelraj”.
+then tap the microphone button or switch on **Hands-free** and say “Hello Deelraj”.
+
+<img src="divider.svg" alt="" width="100%">
+
+## Using it on a Mac
+
+This GitHub page only describes the project. **You talk to Deelraj on your own computer**, not here.
+
+```bash
+cd ~/Downloads/deelraj             # the folder you unzipped
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env               # then open .env and paste your Anthropic API key
+python app.py
+```
+
+Then open **http://localhost:5000 in Chrome** (not the file itself, and not this GitHub page).
+
+- You can test the voice with just the Anthropic key. Connect Google later using the button at the top right.
+- If the microphone does not respond, click **Allow** when Chrome asks, then check
+  System Settings > Privacy & Security > Microphone and switch on Chrome.
+- Safari's speech recognition is unreliable, so use Chrome.
 
 <img src="divider.svg" alt="" width="100%">
 
@@ -53,7 +75,7 @@ then tap the glow or switch on **Hands-free** and say “Hello Deelraj”.
 - Or all at once: “Hello Deelraj, what’s on my calendar tomorrow?”
 - After he answers he keeps listening briefly, so you can ask a follow-up
 - When he drafts an email or event, say “yes” or “cancel”, or use the buttons
-- You can also type a request in the box at the bottom
+- Everything is spoken, so there is no text on screen except when he is about to send an email or add an event
 
 ## How it works
 

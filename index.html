@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>Deelraj</title>
+<style>
+  :root {
+    --ink: #ffffff;
+    --dim: rgba(255, 255, 255, 0.6);
+    --glass: rgba(255, 255, 255, 0.1);
+    --edge: rgba(255, 255, 255, 0.18);
+    --blue: #2f6bff;
+    --violet: #9b5cff;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; margin: 0; background: #000; overflow: hidden; }
+  body {
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Inter, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Colored light behind the wave; brighter as Deelraj listens and speaks. */
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    background: radial-gradient(55% 40% at 50% 46%, rgba(47, 107, 255, 0.4), rgba(155, 92, 255, 0.2) 50%, transparent 78%);
+    opacity: 0.3;
+    transition: opacity 0.6s ease;
+    pointer-events: none;
+  }
+  body[data-state="thinking"]::before { opacity: 0.55; }
+  body[data-state="listening"]::before { opacity: 0.8; }
+  body[data-state="speaking"]::before { opacity: 1; }
+
+  #wave { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  .dock {
+    position: fixed; left: 0; right: 0; z-index: 2;
+    bottom: calc(34px + env(safe-area-inset-bottom, 0px));
+    display: flex; justify-content: center; align-items: center; gap: 26px;
+  }
+  .round {
+    border: 1px solid var(--edge); background: var(--glass); color: var(--ink);
+    border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+    -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.2s ease, transform 0.15s ease, border-color 0.2s ease;
+  }
+  .round.small { width: 54px; height: 54px; }
+  .round.big { width: 84px; height: 84px; }
+  .round svg { width: 26px; height: 26px; }
+  .round.big svg { width: 34px; height: 34px; }
+  .round:hover { background: rgba(255, 255, 255, 0.18); }
+  .round:active { transform: scale(0.94); }
+  .round[aria-pressed="true"], body[data-state="listening"] #mic {
+    background: linear-gradient(135deg, var(--blue), var(--violet)); border-color: transparent;
+  }
+  .round:focus-visible, .btn:focus-visible { outline: 2px solid #8fb0ff; outline-offset: 3px; }
+
+  .btn { font: inherit; font-weight: 600; font-size: 16px; color: var(--ink); border: 0; border-radius: 14px; padding: 12px 20px; cursor: pointer; background: rgba(255, 255, 255, 0.14); text-decoration: none; display: inline-block; }
+  .btn.primary { background: linear-gradient(135deg, var(--blue), var(--violet)); }
+  #connect { position: fixed; z-index: 2; top: calc(18px + env(safe-area-inset-top, 0px)); right: 18px; }
+
+  /* Appears only when Deelraj is about to send an email or add an event. */
+  #confirm {
+    position: fixed; z-index: 3; left: 50%; transform: translateX(-50%);
+    bottom: calc(144px + env(safe-area-inset-bottom, 0px));
+    width: min(520px, calc(100% - 32px));
+    background: rgba(20, 20, 28, 0.62); border: 1px solid var(--edge); border-radius: 22px; padding: 18px 20px;
+    -webkit-backdrop-filter: blur(28px); backdrop-filter: blur(28px);
+  }
+  #confirm h2 { margin: 0 0 6px; font-size: 18px; font-weight: 600; }
+  #confirm pre { margin: 0 0 16px; white-space: pre-wrap; font: inherit; font-size: 15px; line-height: 1.45; color: var(--dim); max-height: 150px; overflow-y: auto; }
+  .row { display: flex; gap: 10px; }
+</style>
+</head>
+<body data-state="idle">
+<canvas id="wave" aria-hidden="true"></canvas>
+
+<a class="btn primary" id="connect" href="/login" hidden>Connect Google</a>
+
+<section id="confirm" hidden role="alertdialog" aria-labelledby="c-title">
+  <h2 id="c-title"></h2>
+  <pre id="c-details"></pre>
+  <div class="row">
+    <button class="btn primary" id="c-yes" type="button"></button>
+    <button class="btn" id="c-no" type="button">Cancel</button>
+  </div>
+</section>
+
+<div class="dock">
+  <button class="round small" id="wake" type="button" aria-pressed="false" aria-label="Hands-free: listen for Hello Deelraj" title="Hands-free">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 10v4M7.5 6v12M12 3v18M16.5 6v12M21 10v4"/></svg>
+  </button>
+  <button class="round big" id="mic" type="button" aria-label="Tap to talk" title="Tap to talk">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg>
+  </button>
+  <button class="round small" id="reset" type="button" aria-label="New conversation" title="New conversation">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/></svg>
+  </button>
+</div>
+
+<div class="sr-only" id="sr" aria-live="polite"></div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const micBtn = $("mic"), wakeBtn = $("wake"), srEl = $("sr");
+  let pending = null, rec = null, wakeRec = null, voice = null, micOK = false;
+  let listening = false, busy = false, wakeOn = false, speakId = 0;
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const synth = window.speechSynthesis;
+
+  // "Hello Deelraj", plus the ways speech recognition tends to mishear the name.
+  const WAKE = /\b(?:hello|hey|hi|okay|ok)[\s,]+(?:deel|dil|deal|dill|dee)[\s-]?raj(?:aa)?\b[\s,.!?:-]*/i;
+  const GREETINGS = [
+    "Hey! I’m here. What can I do for you?",
+    "Hi there. What do you need?",
+    "Yes, I’m listening.",
+    "Hello! What’s up?",
+  ];
+  const YES = /^(yes|yeah|yep|confirm|confirmed|send it|do it|go ahead|please do|sure|ok|okay)\b/i;
+  const NO = /^(no|nope|cancel|stop|don't|do not|never mind)\b/i;
+  // There is no on-screen text, so problems are spoken aloud.
+  const MIC_MSG = "I can’t use the microphone. Please allow microphone access for this page in your browser, and in System Settings under Privacy and Security.";
+  const NO_SR_MSG = "Voice input isn’t supported in this browser. Please open me in Chrome.";
+
+  function setState(s) {
+    document.body.dataset.state = s;
+    micBtn.setAttribute("aria-label", s === "listening" ? "Listening. Tap to stop" : "Tap to talk");
+  }
+  function note(text) { srEl.textContent = text; } // screen readers only
+
+  // ===================== Siri-style wave =====================
+  const canvas = $("wave"), ctx = canvas.getContext("2d");
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let W = 0, H = 0;
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = Math.max(1, Math.round(W * dpr));
+    canvas.height = Math.max(1, Math.round(H * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  const WAVES = [
+    { c: [0, 224, 255],  amp: 1.00, freq: 1.6, speed:  1.1, off: 0.0 },
+    { c: [47, 107, 255], amp: 0.85, freq: 2.1, speed: -0.8, off: 1.3 },
+    { c: [155, 92, 255], amp: 0.70, freq: 2.7, speed:  1.4, off: 2.4 },
+    { c: [255, 45, 138], amp: 0.90, freq: 1.9, speed: -1.2, off: 3.6 },
+    { c: [45, 255, 176], amp: 0.50, freq: 3.3, speed:  0.9, off: 4.8 },
+  ];
+  const TARGET = { idle: 0.08, listening: 0.36, thinking: 0.15, speaking: 0.5 };
+  const SPEED = { idle: 0.5, listening: 1.0, thinking: 2.6, speaking: 1.4 };
+  let level = 0.08, speedNow = 0.5, phase = 0, last = performance.now();
+
+  function frame(now) {
+    const dt = Math.min((now - last) / 1000, 0.05);
+    last = now;
+    const st = document.body.dataset.state || "idle";
+    const t = now / 1000;
+    let target = TARGET[st] ?? TARGET.idle;
+    // Speech synthesis exposes no audio levels, so shape a speech-like rhythm.
+    if (st === "speaking") target *= 0.55 + 0.45 * Math.abs(Math.sin(t * 6.3) * Math.sin(t * 2.3 + 1) + 0.4 * Math.sin(t * 15.1));
+    else if (st === "listening") target *= 0.7 + 0.3 * Math.sin(t * 3.7) * Math.sin(t * 1.3);
+    else if (st === "idle") target *= (wakeOn ? 1.35 : 1) * (0.8 + 0.2 * Math.sin(t * 1.2));
+    if (reduceMotion) target = Math.min(target, 0.06);
+    level += (target - level) * Math.min(1, dt * 8);
+    speedNow += ((SPEED[st] ?? 0.5) - speedNow) * Math.min(1, dt * 4);
+    phase += dt * speedNow * (reduceMotion ? 0.15 : 1);
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.globalCompositeOperation = "lighter";
+    const cy = H * 0.46, N = 120;
+    for (const w of WAVES) {
+      const A = H * 0.32 * level * w.amp;
+      const xs = [], ys = [];
+      for (let i = 0; i <= N; i++) {
+        const xn = (i / N) * 2 - 1;
+        const x = xn * 2;
+        const att = Math.pow(4 / (4 + Math.pow(x, 4)), 2); // fades the wave out toward both edges
+        xs.push((i / N) * W);
+        ys.push(Math.sin(xn * Math.PI * w.freq + phase * w.speed * 2 + w.off) * att * A);
+      }
+      const rgb = w.c.join(",");
+      ctx.beginPath();
+      ctx.moveTo(xs[0], cy + ys[0]);
+      for (let i = 1; i <= N; i++) ctx.lineTo(xs[i], cy + ys[i]);
+      for (let i = N; i >= 0; i--) ctx.lineTo(xs[i], cy - ys[i]);
+      ctx.closePath();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = `rgba(${rgb},0.10)`;
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.shadowColor = `rgba(${rgb},0.9)`;
+      ctx.shadowBlur = 14;
+      for (const sign of [1, -1]) {
+        ctx.beginPath();
+        ctx.moveTo(xs[0], cy + sign * ys[0]);
+        for (let i = 1; i <= N; i++) ctx.lineTo(xs[i], cy + sign * ys[i]);
+        ctx.strokeStyle = `rgba(${rgb},${sign === 1 ? 0.9 : 0.5})`;
+        ctx.stroke();
+      }
+    }
+    ctx.shadowBlur = 0;
+    const g = ctx.createLinearGradient(0, 0, W, 0);
+    g.addColorStop(0, "rgba(255,255,255,0)");
+    g.addColorStop(0.5, "rgba(255,255,255,0.6)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.strokeStyle = g;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, cy);
+    ctx.lineTo(W, cy);
+    ctx.stroke();
+    ctx.globalCompositeOperation = "source-over";
+  }
+  requestAnimationFrame(frame);
+
+  // ===================== voice =====================
+  function pickVoice() {
+    const vs = synth ? synth.getVoices() : [];
+    const score = (v) =>
+      (/^en/i.test(v.lang) ? 10 : 0) +
+      (/natural|neural|online/i.test(v.name) ? 6 : 0) +
+      (/\bmale\b|guy|daniel|aaron|ryan|davis|david|alex|brian|christopher|eric/i.test(v.name) ? 3 : 0);
+    voice = vs.slice().sort((a, b) => score(b) - score(a))[0] || null;
+  }
+  if (synth) { pickVoice(); synth.onvoiceschanged = pickVoice; }
+
+  function stopSpeaking() { speakId++; synth?.cancel(); }
+
+  function speak(text, onDone) {
+    if (!synth) { onDone?.(); return; }
+    stopSpeaking();
+    const id = speakId;
+    const u = new SpeechSynthesisUtterance(text);
+    if (voice) { u.voice = voice; u.lang = voice.lang; }
+    u.rate = 1.0;
+    u.onstart = () => setState("speaking");
+    u.onend = u.onerror = () => { if (id === speakId) onDone?.(); };
+    synth.speak(u);
+  }
+
+  // Asking for the microphone up front makes the browser show its permission prompt reliably.
+  async function ensureMic() {
+    if (micOK) return true;
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+      s.getTracks().forEach((t) => t.stop());
+      micOK = true;
+      return true;
+    } catch { return false; }
+  }
+
+  // ===================== confirmation card =====================
+  function showPending(p) {
+    pending = p;
+    $("confirm").hidden = !p;
+    if (p) {
+      $("c-title").textContent = p.title;
+      $("c-details").textContent = p.details;
+      $("c-yes").textContent = p.confirm_label;
+    }
+  }
+
+  async function post(path, body) {
+    const res = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {}),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    return data;
+  }
+
+  // A turn is over: go back to idle, and back to waiting for the wake phrase if hands-free is on.
+  function endTurn() {
+    busy = false;
+    listening = false;
+    setState("idle");
+    if (wakeOn) startWake();
+  }
+
+  function sayError(msg) {
+    busy = true;
+    stopWake();
+    note(msg);
+    speak(msg, () => endTurn());
+  }
+
+  function deliver(data, listenAfter) {
+    note(data.reply);
+    showPending(data.pending);
+    // After a spoken request, keep listening for a natural follow-up or a spoken yes/no.
+    speak(data.reply, () => (listenAfter ? startListening() : endTurn()));
+  }
+
+  function fail(err) {
+    console.error(err);
+    sayError("Sorry, something went wrong. Check the terminal window for details.");
+  }
+
+  async function handleUtterance(text, viaVoice = false) {
+    text = text.trim();
+    if (!text) { endTurn(); return; }
+    busy = true;
+    stopWake();
+    note("You said: " + text);
+    if (pending && YES.test(text)) return confirm(true);
+    if (pending && NO.test(text)) return confirm(false);
+    setState("thinking");
+    try { deliver(await post("/api/chat", { message: text }), viaVoice); } catch (e) { fail(e); }
+  }
+
+  async function confirm(approve) {
+    busy = true;
+    stopWake();
+    setState("thinking");
+    try { deliver(await post("/api/confirm", { approve }), false); } catch (e) { fail(e); }
+  }
+
+  // ===================== hands-free: wait for "Hello Deelraj" =====================
+  function startWake() {
+    if (!SR || !wakeOn || busy) return;
+    stopWake();
+    wakeRec = new SR();
+    wakeRec.lang = navigator.language || "en-US";
+    wakeRec.continuous = true;
+    wakeRec.interimResults = false;
+    wakeRec.onresult = (e) => {
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (!e.results[i].isFinal) continue;
+        const t = e.results[i][0].transcript;
+        if (WAKE.test(t)) { onWake(t); return; }
+      }
+    };
+    wakeRec.onerror = (e) => {
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+        setWake(false);
+        sayError(MIC_MSG);
+      }
+    };
+    // Browsers end continuous recognition after a while, so restart it quietly.
+    wakeRec.onend = () => { if (wakeOn && !busy) setTimeout(startWake, 300); };
+    try { wakeRec.start(); } catch {}
+  }
+
+  function stopWake() {
+    if (!wakeRec) return;
+    wakeRec.onend = null;
+    wakeRec.onresult = null;
+    try { wakeRec.abort(); } catch {}
+    wakeRec = null;
+  }
+
+  function onWake(text) {
+    busy = true;
+    stopWake();
+    const m = text.match(WAKE);
+    const rest = text.slice(m.index + m[0].length).trim();
+    // "Hello Deelraj, what's on my calendar?" in one breath: skip the greeting and answer.
+    if (rest.split(/\s+/).filter(Boolean).length >= 2) { handleUtterance(rest, true); return; }
+    const greeting = GREETINGS[Math.floor(Math.random() * GREETINGS.length)];
+    note(greeting);
+    speak(greeting, () => startListening());
+  }
+
+  function setWake(on) {
+    wakeOn = on;
+    wakeBtn.setAttribute("aria-pressed", String(on));
+    if (!on) stopWake();
+  }
+
+  // ===================== one-shot listening =====================
+  async function startListening() {
+    if (!SR) { sayError(NO_SR_MSG); return; }
+    busy = true;
+    stopWake();
+    stopSpeaking();
+    if (!(await ensureMic())) { setWake(false); sayError(MIC_MSG); return; }
+    rec = new SR();
+    rec.lang = navigator.language || "en-US";
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    let heard = "", err = null;
+    rec.onstart = () => { listening = true; setState("listening"); };
+    rec.onresult = (e) => { heard = e.results[0][0].transcript; };
+    rec.onerror = (e) => { if (e.error !== "no-speech" && e.error !== "aborted") err = e.error; };
+    rec.onend = () => {
+      listening = false;
+      if (heard) { handleUtterance(heard, true); return; }
+      if (err === "not-allowed" || err === "service-not-allowed") { setWake(false); sayError(MIC_MSG); }
+      else if (err) sayError("Sorry, I didn’t catch that. Tap the microphone to try again.");
+      else endTurn();
+    };
+    try { rec.start(); } catch { endTurn(); }
+  }
+
+  // ===================== controls =====================
+  micBtn.addEventListener("click", () => {
+    if (listening) { rec.stop(); return; }
+    startListening();
+  });
+
+  wakeBtn.addEventListener("click", async () => {
+    if (!SR) { sayError(NO_SR_MSG); return; }
+    if (wakeOn) { setWake(false); if (!busy) setState("idle"); return; }
+    stopSpeaking();
+    if (!(await ensureMic())) { sayError(MIC_MSG); return; }
+    setWake(true);
+    busy = true;
+    stopWake();
+    const msg = "Okay. I’m listening for Hello Deelraj.";
+    note(msg);
+    speak(msg, () => endTurn());
+  });
+
+  $("c-yes").addEventListener("click", () => confirm(true));
+  $("c-no").addEventListener("click", () => confirm(false));
+
+  $("reset").addEventListener("click", async () => {
+    stopSpeaking();
+    try { await post("/api/reset"); } catch {}
+    showPending(null);
+    endTurn();
+  });
+
+  fetch("/api/status").then((r) => r.json()).then(({ authed }) => {
+    $("connect").hidden = authed;
+  }).catch(() => {});
+})();
+</script>
+</body>
+</html>
