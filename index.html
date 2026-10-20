@@ -94,7 +94,7 @@
 </section>
 
 <div class="dock">
-  <button class="round small" id="wake" type="button" aria-pressed="false" aria-label="Hands-free: listen for Hello Deelraj" title="Hands-free">
+  <button class="round small" id="wake" type="button" aria-pressed="false" aria-label="Hands-free: listen for Hi Dee" title="Hands-free">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 10v4M7.5 6v12M12 3v18M16.5 6v12M21 10v4"/></svg>
   </button>
   <button class="round big" id="mic" type="button" aria-label="Tap to talk" title="Tap to talk">
@@ -117,14 +117,12 @@
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const synth = window.speechSynthesis;
 
-  // "Hello Deelraj", plus the ways speech recognition tends to mishear the name.
-  const WAKE = /\b(?:hello|hey|hi|okay|ok)[\s,]+(?:deel|dil|deal|dill|dee)[\s-]?raj(?:aa)?\b[\s,.!?:-]*/i;
-  const GREETINGS = [
-    "Hey! I’m here. What can I do for you?",
-    "Hi there. What do you need?",
-    "Yes, I’m listening.",
-    "Hello! What’s up?",
-  ];
+  // "Hi Dee" (also "Hey Dee" / "Hello Dee", and the full name Deelraj), including common mishearings.
+  const WAKE = /\b(?:hi|hey|hello)[\s,.-]*(?:deel[\s-]?raj(?:aa)?|dil[\s-]?raj|deal[\s-]?raj|dee|dea|di|d)\b[\s,.!?:-]*/i;
+  const HELLO = "Hi, how are you today?";
+  const ASK = "How may I help you today?";
+  const FEEL_BAD = /\b(bad|tired|sick|awful|terrible|stressed|exhausted|sad|rough|not (?:so |very |too )?(?:good|great|well)|could be better)\b/i;
+  const FEEL_GOOD = /\b(good|great|fine|well|okay|ok|alright|awesome|fantastic|amazing|wonderful|happy|excellent|not bad)\b/i;
   const YES = /^(yes|yeah|yep|confirm|confirmed|send it|do it|go ahead|please do|sure|ok|okay)\b/i;
   const NO = /^(no|nope|cancel|stop|don't|do not|never mind)\b/i;
   // There is no on-screen text, so problems are spoken aloud.
@@ -230,13 +228,28 @@
   requestAnimationFrame(frame);
 
   // ===================== voice =====================
+  const FEMALE = /\b(ava|allison|samantha|serena|zoe|karen|moira|tessa|susan|victoria|kate|jenny|aria|sonia|libby|emma|joanna|nicky|female)\b|google us english/i;
+  const MALE = /\b(male|daniel|alex|fred|ralph|aaron|guy|ryan|davis|david|james|george|mark|tom|thomas|eric|brian|christopher|oliver|arthur|reed|rocko|eddy|grandpa)\b/i;
+  const NOVELTY = /albert|bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|junior|kathy|princess|hysterical|deranged/i;
+  const WANTED = (new URLSearchParams(location.search).get("voice") || "").toLowerCase(); // e.g. /?voice=ava
+
+  // Pick the most pleasant female English voice this browser has.
   function pickVoice() {
     const vs = synth ? synth.getVoices() : [];
-    const score = (v) =>
-      (/^en/i.test(v.lang) ? 10 : 0) +
-      (/natural|neural|online/i.test(v.name) ? 6 : 0) +
-      (/\bmale\b|guy|daniel|aaron|ryan|davis|david|alex|brian|christopher|eric/i.test(v.name) ? 3 : 0);
+    const lang = (navigator.language || "en-US").toLowerCase();
+    const score = (v) => {
+      let s = 0;
+      if (/^en/i.test(v.lang)) s += 10;
+      if (v.lang.replace("_", "-").toLowerCase() === lang) s += 2;
+      if (/premium|enhanced|natural|neural|online/i.test(v.name)) s += 8;
+      if (FEMALE.test(v.name)) s += 12;
+      if (MALE.test(v.name)) s -= 25;
+      if (NOVELTY.test(v.name)) s -= 100;
+      if (WANTED && v.name.toLowerCase().includes(WANTED)) s += 100;
+      return s;
+    };
     voice = vs.slice().sort((a, b) => score(b) - score(a))[0] || null;
+    if (voice) console.info("Deelraj voice:", voice.name);
   }
   if (synth) { pickVoice(); synth.onvoiceschanged = pickVoice; }
 
@@ -248,7 +261,8 @@
     const id = speakId;
     const u = new SpeechSynthesisUtterance(text);
     if (voice) { u.voice = voice; u.lang = voice.lang; }
-    u.rate = 1.0;
+    u.rate = 0.97;
+    u.pitch = 1.03;
     u.onstart = () => setState("speaking");
     u.onend = u.onerror = () => { if (id === speakId) onDone?.(); };
     synth.speak(u);
@@ -333,7 +347,7 @@
     try { deliver(await post("/api/confirm", { approve }), false); } catch (e) { fail(e); }
   }
 
-  // ===================== hands-free: wait for "Hello Deelraj" =====================
+  // ===================== hands-free: wait for "Hi Dee" =====================
   function startWake() {
     if (!SR || !wakeOn || busy) return;
     stopWake();
@@ -372,11 +386,28 @@
     stopWake();
     const m = text.match(WAKE);
     const rest = text.slice(m.index + m[0].length).trim();
-    // "Hello Deelraj, what's on my calendar?" in one breath: skip the greeting and answer.
+    // "Hi Dee, what's on my calendar?" in one breath: skip the small talk and answer.
     if (rest.split(/\s+/).filter(Boolean).length >= 2) { handleUtterance(rest, true); return; }
-    const greeting = GREETINGS[Math.floor(Math.random() * GREETINGS.length)];
-    note(greeting);
-    speak(greeting, () => startListening());
+    note(HELLO);
+    speak(HELLO, () => startListening(onHowAreYou, askHelp));
+  }
+
+  // Nobody answered "how are you": go straight to asking how to help.
+  function askHelp() {
+    note(ASK);
+    speak(ASK, () => startListening());
+  }
+
+  // The answer to "how are you today?", then "How may I help you today?"
+  function onHowAreYou(text) {
+    const words = text.trim().split(/\s+/).filter(Boolean).length;
+    const bad = FEEL_BAD.test(text), good = FEEL_GOOD.test(text);
+    // A long answer or something that is not about feelings is treated as a real request.
+    if (words > 8 || (!bad && !good)) { handleUtterance(text, true); return; }
+    let ack = bad ? "I’m sorry to hear that. I hope your day gets better." : "Glad to hear it.";
+    if (/\b(you|yourself)\b/i.test(text)) ack += " I’m doing great, thanks for asking.";
+    note(ack + " " + ASK);
+    speak(ack + " " + ASK, () => startListening());
   }
 
   function setWake(on) {
@@ -386,7 +417,7 @@
   }
 
   // ===================== one-shot listening =====================
-  async function startListening() {
+  async function startListening(onHeard = (t) => handleUtterance(t, true), onSilence = () => endTurn()) {
     if (!SR) { sayError(NO_SR_MSG); return; }
     busy = true;
     stopWake();
@@ -402,10 +433,10 @@
     rec.onerror = (e) => { if (e.error !== "no-speech" && e.error !== "aborted") err = e.error; };
     rec.onend = () => {
       listening = false;
-      if (heard) { handleUtterance(heard, true); return; }
+      if (heard) { onHeard(heard); return; }
       if (err === "not-allowed" || err === "service-not-allowed") { setWake(false); sayError(MIC_MSG); }
       else if (err) sayError("Sorry, I didn’t catch that. Tap the microphone to try again.");
-      else endTurn();
+      else onSilence();
     };
     try { rec.start(); } catch { endTurn(); }
   }
@@ -424,7 +455,7 @@
     setWake(true);
     busy = true;
     stopWake();
-    const msg = "Okay. I’m listening for Hello Deelraj.";
+    const msg = "Okay. I’m listening for Hi Dee.";
     note(msg);
     speak(msg, () => endTurn());
   });

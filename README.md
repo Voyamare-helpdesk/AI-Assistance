@@ -3,17 +3,17 @@
 </p>
 
 <p align="center">
-  Say <b>“Hello Deelraj”</b> and ask about your day, search your email, or have him draft
-  an email or schedule an event. He always asks before sending or creating anything.
+  Say <b>“Hi Dee”</b> and ask about your day, search your email, or have Deelraj draft
+  an email or schedule an event. Deelraj always asks before sending or creating anything.
 </p>
 
 <img src="divider.svg" alt="" width="100%">
 
-## What he does
+## What Deelraj does
 
 | Feature | What it does |
 |---|---|
-| **Wake phrase** | Turn on Hands-free and say “Hello Deelraj”, or tap the microphone button |
+| **Wake phrase** | Turn on Hands-free and say “Hi Dee”, or tap the microphone button |
 | **Siri-style screen** | No text, just a black screen with a glowing wave and two buttons: microphone and hands-free |
 | **Calendar and email** | Check your schedule, search and read email, all by voice |
 | **Confirmation first** | Emails and events are only sent or created after you say yes |
@@ -43,7 +43,7 @@ python app.py
 ```
 
 Open http://localhost:5000 in Chrome, Edge or Safari, click **Connect Google account**,
-then tap the microphone button or switch on **Hands-free** and say “Hello Deelraj”.
+then tap the microphone button or switch on **Hands-free** and say “Hi Dee”.
 
 <img src="divider.svg" alt="" width="100%">
 
@@ -71,11 +71,11 @@ Then open **http://localhost:5000 in Chrome** (not the file itself, and not this
 
 ## Talking to Deelraj
 
-- Say “Hello Deelraj”, wait for his greeting, then ask
-- Or all at once: “Hello Deelraj, what’s on my calendar tomorrow?”
-- After he answers he keeps listening briefly, so you can ask a follow-up
-- When he drafts an email or event, say “yes” or “cancel”, or use the buttons
-- Everything is spoken, so there is no text on screen except when he is about to send an email or add an event
+- Say “Hi Dee”. Deelraj answers “Hi, how are you today?”, listens to your reply, then asks “How may I help you today?”
+- Or all at once: “Hi Dee, what’s on my calendar tomorrow?”
+- After the answer Deelraj keeps listening briefly, so you can ask a follow-up
+- When Deelraj drafts an email or event, say “yes” or “cancel”, or use the buttons
+- Everything is spoken, so there is no text on screen except when Deelraj is about to send an email or add an event
 
 ## How it works
 
@@ -102,5 +102,9 @@ Google access. The included `.gitignore` already excludes them.
 - With Hands-free on, your browser listens continuously for the wake phrase and its speech
   service processes that audio. Turn it off when you don’t need it.
 - Voice input works in Chrome, Edge and Safari.
+- Deelraj picks the most pleasant female English voice your browser has. For a richer
+  voice on a Mac, download **Ava (Premium)** or **Zoe (Premium)** in System Settings >
+  Accessibility > Spoken Content > System Voice > Manage Voices, then reload Chrome.
+  To force a voice, add it to the address, for example `http://localhost:5000/?voice=ava`.
 - Google may show an “unverified app” warning because this is your own test project.
 - GitHub Pages cannot host this project, because it needs the Python server.
