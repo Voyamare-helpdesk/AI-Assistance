@@ -297,7 +297,11 @@
       body: JSON.stringify(body || {}),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Request failed");
+    if (!res.ok) {
+      const e = new Error(data.error || "Request failed");
+      e.fromServer = Boolean(data.error);
+      throw e;
+    }
     return data;
   }
 
@@ -325,7 +329,10 @@
 
   function fail(err) {
     console.error(err);
-    sayError("Sorry, something went wrong. Check the terminal window for details.");
+    // The server explains what went wrong in plain words; if it could not be reached at all, say so.
+    sayError(err.fromServer
+      ? err.message
+      : "I can’t reach my server. Please make sure the terminal is still running app dot P Y, and that you opened localhost colon 5000 in Chrome.");
   }
 
   async function handleUtterance(text, viaVoice = false) {

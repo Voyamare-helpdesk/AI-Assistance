@@ -17,7 +17,8 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 
-load_dotenv()
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(BASE_DIR, ".env"))
 # Local development only: lets OAuth work over http://localhost
 os.environ.setdefault("OAUTHLIB_INSECURE_TRANSPORT", "1")
 os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
@@ -33,8 +34,8 @@ SCOPES = [
     "https://www.googleapis.com/auth/gmail.send",
     "https://www.googleapis.com/auth/calendar.events",
 ]
-TOKEN_FILE = "token.json"
-CLIENT_FILE = "credentials.json"
+TOKEN_FILE = os.path.join(BASE_DIR, "token.json")
+CLIENT_FILE = os.path.join(BASE_DIR, "credentials.json")
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 _client = None
@@ -304,7 +305,7 @@ def system_prompt() -> str:
     return (
         f"You are Deelraj, a warm, relaxed personal assistant who manages the user's Gmail and "
         f"Google Calendar. Current date and time: {now} ({TZ}).\n"
-        "Talk like a thoughtful friend, not a machine: use contractions, natural phrasing, and a "
+        "The user may call you Dee. Talk like a thoughtful friend, not a machine: use contractions, natural phrasing, and a "
         "quick acknowledgement when it fits (Sure, Got it, Okay, one sec). Be warm, and add a touch "
         "of light humor only when it feels natural. Never mention being an AI model and never "
         "read out formatting.\n"
@@ -328,13 +329,50 @@ def trim_history():
             HISTORY.pop(0)
 
 
+FALLBACK_MODELS = ["claude-sonnet-4-6"]
+
+
+def friendly_error(exc: Exception) -> str:
+    """Turn an exception into one short sentence that can be spoken aloud."""
+    name = type(exc).__name__
+    text = str(exc).lower()
+    if name == "AuthenticationError" or "authentication method" in text or "api_key" in text or "api key" in text:
+        return "I can't find a valid Anthropic API key. Please put it in the dot env file and restart me."
+    if name == "NotFoundError":
+        return "That model isn't available on your account. Please set CLAUDE_MODEL in the dot env file."
+    if "credit balance" in text or "billing" in text:
+        return "Your Anthropic account looks out of credits. Please check your billing."
+    if name == "RateLimitError":
+        return "I've hit a rate limit. Please try again in a moment."
+    if name in ("APIConnectionError", "APITimeoutError", "ConnectionError"):
+        return "I can't reach Anthropic. Please check your internet connection."
+    return "Sorry, something went wrong on my side. The terminal window shows the details."
+
+
+def create_message(**kwargs):
+    """Call Claude; if the configured model does not exist for this account, try a fallback."""
+    global MODEL
+    try:
+        return get_client().messages.create(model=MODEL, **kwargs)
+    except Exception as exc:
+        if type(exc).__name__ == "NotFoundError":
+            for fallback in FALLBACK_MODELS:
+                if fallback == MODEL:
+                    continue
+                try:
+                    reply = get_client().messages.create(model=fallback, **kwargs)
+                    app.logger.warning("Model %s not found; switched to %s", MODEL, fallback)
+                    MODEL = fallback
+                    return reply
+                except Exception:
+                    continue
+        raise
+
+
 def run_agent(user_text: str) -> str:
     HISTORY.append({"role": "user", "content": user_text})
     for _ in range(8):
-        resp = get_client().messages.create(
-            model=MODEL, max_tokens=1024, system=system_prompt(),
-            tools=TOOLS, messages=HISTORY,
-        )
+        resp = create_message(max_tokens=1024, system=system_prompt(), tools=TOOLS, messages=HISTORY)
         HISTORY.append({"role": "assistant", "content": resp.content})
         if resp.stop_reason != "tool_use":
             trim_history()
@@ -374,11 +412,13 @@ def chat():
     if not text:
         return jsonify(error="Empty message."), 400
     PENDING = None  # a new request replaces any stale unconfirmed action
+    start = len(HISTORY)
     try:
         reply = run_agent(text)
     except Exception as exc:
+        del HISTORY[start:]  # drop the half-finished turn so the next request starts clean
         app.logger.exception("Assistant error")
-        return jsonify(error=f"Assistant error: {exc}"), 500
+        return jsonify(error=friendly_error(exc)), 500
     return jsonify(reply=reply, pending=pending_for_ui())
 
 
@@ -410,4 +450,7 @@ def reset():
 
 
 if __name__ == "__main__":
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        print("WARNING: ANTHROPIC_API_KEY is not set. Add it to the .env file next to app.py, then restart.")
+    print(f"Deelraj is running. Open http://localhost:{PORT} in Chrome.")
     app.run(host="127.0.0.1", port=PORT, debug=False)
