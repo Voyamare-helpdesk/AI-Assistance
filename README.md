@@ -17,7 +17,7 @@
 | **Siri-style screen** | No text, just a black screen with a glowing wave and two buttons: microphone and hands-free |
 | **Calendar and email** | Check your schedule, search and read email, all by voice |
 | **Confirmation first** | Emails and events are only sent or created after you say yes |
-| **Natural replies** | Short, friendly answers, and follow-up questions work |
+| **Human conversation** | Keeps listening after each answer, speaks as soon as the first sentence is ready, remembers the chat |
 
 <img src="divider.svg" alt="" width="100%">
 
@@ -71,11 +71,16 @@ Then open **http://localhost:5000 in Chrome** (not the file itself, and not this
 
 ## Talking to Deelraj
 
+Deelraj is built to feel like a phone call, not a voice command box.
+
 - Say “Hi Dee”. Deelraj answers “Hi, how are you today?”, listens to your reply, then asks “How may I help you today?”
 - Or all at once: “Hi Dee, what’s on my calendar tomorrow?”
-- After the answer Deelraj keeps listening briefly, so you can ask a follow-up
-- When Deelraj drafts an email or event, say “yes” or “cancel”, or use the buttons
-- Everything is spoken, so there is no text on screen except when Deelraj is about to send an email or add an event
+- **The conversation keeps going.** After each answer Deelraj listens again, so you never have to tap or repeat the wake phrase. After a few quiet seconds Deelraj says “I’m here if you need me” and steps back.
+- **Replies start fast.** Deelraj speaks the first sentence while the rest is still being written, and says a short “Let me check” before looking things up.
+- **Interrupt any time** by tapping the microphone button.
+- **End it naturally:** say “bye”, “that’s all” or “talk to you later”.
+- Deelraj remembers what you talked about, can chat about anything, and checks with you before sending an email or adding an event.
+- Everything is spoken, so there is no text on screen except when Deelraj is about to send an email or add an event.
 
 ## How it works
 
