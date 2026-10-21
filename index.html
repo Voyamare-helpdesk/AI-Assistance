@@ -367,10 +367,11 @@
 
   function fail(err) {
     console.error(err);
-    // The server explains what went wrong in plain words; if it could not be reached at all, say so.
-    sayError(err.fromServer
-      ? err.message
-      : "I can’t reach my server. Please make sure the terminal is still running app dot P Y, and that you opened localhost colon 5000 in Chrome.");
+    let msg;
+    if (err.fromServer) msg = err.message;
+    else if (err instanceof TypeError) msg = "I can’t reach my server. Please make sure the terminal is running app dot P Y, then reload this page.";
+    else msg = "My server gave an unexpected answer. Please stop and restart app dot P Y, then reload this page.";
+    sayError(msg);
   }
 
   // Used for the confirm/cancel result: speak it, then keep the conversation going.
@@ -408,6 +409,18 @@
     try { deliver(await post("/api/confirm", { approve })); } catch (e) { fail(e); }
   }
 
+  // Fallback for an older app.py: get the whole reply at once, then speak it sentence by sentence.
+  async function chatOnce(text) {
+    const data = await post("/api/chat", { message: text });
+    showPending(data.pending);
+    note(data.reply);
+    let buf = data.reply, m;
+    while ((m = SENT.exec(buf))) { enqueue(m[1]); buf = buf.slice(m[0].length); }
+    if (buf.trim()) enqueue(buf);
+    q.streamDone = true;
+    pump();
+  }
+
   // Ask Claude and start speaking the first sentence as soon as it arrives.
   async function chatStream(text) {
     setState("thinking");
@@ -424,6 +437,7 @@
         body: JSON.stringify({ message: text }),
         signal: ctrl.signal,
       });
+      if (res.status === 404) { await chatOnce(text); return; } // an older app.py without streaming
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         const e = new Error(d.error || "Request failed");
